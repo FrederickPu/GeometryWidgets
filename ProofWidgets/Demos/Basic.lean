@@ -6,6 +6,8 @@ def x := <b>You can use HTML in lean! {.text <| toString <| 4 + 5} <hr/> </b>
 
 #html x
 
+
+
 theorem ghjk : True := by
   html! <b>What, HTML in Lean?! </b>
   html! <i>And another!</i>
