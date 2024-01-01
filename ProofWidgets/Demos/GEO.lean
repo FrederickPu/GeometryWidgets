@@ -157,9 +157,18 @@ def wow : Tactic
         | true, true, true => points := points
         out := List.cons (exprMap.find! a, exprMap.find! b, exprMap.find! c) out
       | none => pure ()
+
+    let mut sumX : Float := 0
+    let mut sumY : Float := 0
+    for ⟨_, x, y⟩ in points.toList do
+     sumX := sumX + x
+     sumY := sumY + y
+    let center := (sumX / Float.ofNat points.toList.length, sumY / Float.ofNat points.toList.length)
+    points := HashMap.ofList <| points.toList.map fun ⟨x, p⟩ => ⟨x, (p + ((100:Float), (100:Float))) - center⟩
+
+    dbg_trace f!"{points.toList} {center}"
     ProofWidgets.savePanelWidgetInfo stx ``BanDisplayPanel do
         return ToJson.toJson (toBanProps exprMap points vertices)
-    dbg_trace f!"{points.toList}"
       -- let declExpr := decl.toExpr -- Find the expression of the declaration.
       -- let declName := decl.userName -- Find the name of the declaration.
       -- let declType ← Lean.Meta.inferType declExpr -- **NEW:** Find the type.
@@ -168,6 +177,7 @@ def wow : Tactic
       -- | none => pure ()
   | _ => throwUnsupportedSyntax
 
-example {α : Type} [Bet Int] : Bet.bet (1 : Int) 2 3 → Bet.bet (1 : Int) (1 + 1) 3 → Bet.bet (7 : Int) (1 + 1) 12 → 1 + 1 = 2 := by
+#check HashMap.ofList
+example {α : Type} [Bet Int] : Bet.bet (1 : Int) 2 3 → Bet.bet (4 : Int) (1 + 1) 8 → Bet.bet (7 : Int) (1 + 1) 12 → 1 + 1 = 2 := by
   intro h h1 h3
   wow

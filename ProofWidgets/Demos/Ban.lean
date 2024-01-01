@@ -3,6 +3,7 @@ import ProofWidgets.Component.HtmlDisplay
 open Lean ProofWidgets
 open scoped ProofWidgets.Jsx
 
+
 structure point where
   id : Nat
   x : Float
@@ -17,6 +18,7 @@ structure BanProps where
   edges : Array edge := #[]
     deriving ToJson, FromJson, Inhabited
 
+#eval ToJson.toJson ({nodes := #[⟨1, 3.0, 5.0⟩, ⟨2, 4.5, 6.0⟩], edges := #[⟨1, 2⟩]} : BanProps)
 
 @[widget_module]
 def Ban : Component BanProps where
