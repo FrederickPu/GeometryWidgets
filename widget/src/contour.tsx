@@ -1,21 +1,19 @@
-// TypeScript equivalent for the Lean structures
-
 import React, { useEffect, useRef } from "react";
-import * as d3 from "d3";
 
-
-interface point {
+interface Point {
   x: number;
   y: number;
 }
 
-interface line {
-  startPoint: point;
-  endPoint: point;
+interface Line {
+  label: string;
+  startPoint: Point;
+  endPoint: Point;
 }
 
-interface arc {
-  center: point;
+interface Arc {
+  label: string;
+  center: Point;
   radius: number;
   startAngle: number;
   endAngle: number;
@@ -25,40 +23,47 @@ interface ContourProps {
   width: number;
   height: number;
   margin: number;
-  nodes: point[];
-  edges: line[];
-  arcs: arc[];
+  nodes: Point[];
+  edges: Line[];
+  arcs: Arc[];
+  selectedLabels?: String;
 }
 
-interface boundingBox {
+interface BoundingBox {
   minX: number;
   minY: number;
   maxX: number;
   maxY: number;
 }
 
-function calculateBoundingBox(lines : line[], arcs : arc[]): boundingBox {
+function calculateBoundingBox(lines: Line[], arcs: Arc[]): BoundingBox {
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
 
   lines.forEach((line) => {
-      const { startPoint, endPoint } = line;
-      minX = Math.min(minX, startPoint.x, endPoint.x);
-      minY = Math.min(minY, startPoint.y, endPoint.y);
-      maxX = Math.max(maxX, startPoint.x, endPoint.x);
-      maxY = Math.max(maxY, startPoint.y, endPoint.y);
-  })
+    const { startPoint, endPoint } = line;
+    minX = Math.min(minX, startPoint.x, endPoint.x);
+    minY = Math.min(minY, startPoint.y, endPoint.y);
+    maxX = Math.max(maxX, startPoint.x, endPoint.x);
+    maxY = Math.max(maxY, startPoint.y, endPoint.y);
+  });
+
   arcs.forEach((arc) => {
-    const { center, radius, startAngle, endAngle } = arc;
+    const { center, radius } = arc;
+    const arcBoundingBox = {
+      minX: center.x - radius,
+      minY: center.y - radius,
+      maxX: center.x + radius,
+      maxY: center.y + radius,
+    };
 
-      minX = Math.min(minX, center.x - radius);
-      minY = Math.min(minY, center.y - radius);
-      maxX = Math.max(maxX, center.x + radius);
-      maxY = Math.max(maxY, center.y + radius);
-  })
-
+    minX = Math.min(minX, arcBoundingBox.minX);
+    minY = Math.min(minY, arcBoundingBox.minY);
+    maxX = Math.max(maxX, arcBoundingBox.maxX);
+    maxY = Math.max(maxY, arcBoundingBox.maxY);
+  });
 
   return {
     minX,
@@ -69,50 +74,93 @@ function calculateBoundingBox(lines : line[], arcs : arc[]): boundingBox {
 }
 
 export default function Contour(props: ContourProps) {
-  const svgRef = useRef(null);
+  const svgElementRef = useRef<SVGSVGElement>(null);
 
-  const {width, height, margin, nodes, edges, arcs} = props
-  const { minX, minY, maxX, maxY } = calculateBoundingBox(edges, arcs)
+  const { width, height, margin, nodes, edges, arcs, selectedLabels } = props;
+  const { minX, minY, maxX, maxY } = calculateBoundingBox(edges, arcs);
 
-  const scaleX = width / (maxX - minX)
-  const scaleY = height / (maxY - minY)
-  const scale = Math.min(scaleX, scaleY)
+  const scaleX = width / (maxX - minX);
+  const scaleY = height / (maxY - minY);
+  const scale = Math.min(scaleX, scaleY);
 
   useEffect(() => {
+    const svg = svgElementRef.current;
 
-    const svg = d3
-    .select(svgRef.current)
-    .attr("width", "100%")
-    .attr("height", "100%")
-    .attr("viewBox", `0 0 ${width + 2 * margin} ${height + 2 * margin}`)
-    .style("background-color", "white");
+    if (!svg) return;
 
-    svg.selectAll("path").remove();
+    // Clear the SVG by removing all child elements
+    while (svg.firstChild) {
+      svg.removeChild(svg.firstChild);
+    }
 
-    nodes.forEach(node => {
-      // do nothing for now
-    })
-    edges.forEach(edge => {
-      var path = d3.path()
-      path.moveTo((edge.startPoint.x - minX) * scale + margin, (edge.startPoint.y - minY) * scale + margin)
-      path.lineTo((edge.endPoint.x - minX) * scale + margin, (edge.endPoint.y - minY) * scale + margin)
+    svg.setAttribute("width", "100%");
+    svg.setAttribute("height", "100%");
+    svg.setAttribute("viewBox", `0 0 ${width + 2 * margin} ${height + 2 * margin}`);
 
-      svg
-      .append("path")
-      .attr("d", path.toString())
-      .attr("fill", "none")
-      .attr("stroke", "black");
-    })
-    arcs.forEach(arc => {
-      var path = d3.path()
-      path.arc((arc.center.x - minX) * scale + margin, (arc.center.y - minY) * scale + margin, arc.radius * scale, arc.startAngle, arc.endAngle)
+    edges.forEach((edge) => {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
 
-      svg
-      .append("path")
-      .attr("d", path.toString())
-      .attr("fill", "none")
-      .attr("stroke", "black");
-    })
-  })
-  return <svg ref={svgRef}></svg>;
+      const { startPoint, endPoint, label } = edge;
+      const startX = (startPoint.x - minX) * scale + margin;
+      const startY = (startPoint.y - minY) * scale + margin;
+      const endX = (endPoint.x - minX) * scale + margin;
+      const endY = (endPoint.y - minY) * scale + margin;
+
+      const textCenterX = (startX + endX) / 2;
+      const textCenterY = (startY + endY) / 2;
+
+      if (selectedLabels && selectedLabels.includes(label)) {
+        path.setAttribute("style", "stroke: red; stroke-width: 3;")
+      }
+      path.setAttribute("d", `M ${startX} ${startY} L ${endX} ${endY}`);
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "black");
+
+      text.setAttribute("x", `${textCenterX}`);
+      text.setAttribute("y", `${textCenterY}`);
+      text.setAttribute("dy", "0.35em");
+      text.setAttribute("text-anchor", "middle");
+      text.setAttribute("font-size", "5");
+      text.textContent = label;
+
+      svg.appendChild(path);
+      svg.appendChild(text);
+    });
+
+    arcs.forEach((arc) => {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+
+      const { center, radius, startAngle, endAngle, label } = arc;
+      const arcX = (center.x - minX) * scale + margin;
+      const arcY = (center.y - minY) * scale + margin;
+
+      // Convert angles to degrees
+      const startAngleDeg = (startAngle * 180) / Math.PI;
+      const endAngleDeg = (endAngle * 180) / Math.PI;
+
+      if (selectedLabels && selectedLabels.includes(label)) {
+        path.setAttribute("style", "stroke: red; stroke-width: 3;")
+      }
+
+      const largeArcFlag = endAngle - startAngle <= Math.PI ? "0" : "1";
+
+      path.setAttribute("d", `M ${arcX + radius * scale * Math.cos(startAngle)} ${arcY + radius * scale * Math.sin(startAngle)} A ${radius * scale} ${radius * scale} 0 ${largeArcFlag} 1 ${arcX + radius * scale * Math.cos(endAngle)} ${arcY + radius * scale * Math.sin(endAngle)}`);
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "black");
+
+      text.setAttribute("x", `${arc.center.x}`);
+      text.setAttribute("y", `${arc.center.y}`);
+      text.setAttribute("dy", "0.35em");
+      text.setAttribute("text-anchor", "middle");
+      text.setAttribute("font-size", "5");
+      text.textContent = label;
+
+      svg.appendChild(path);
+      svg.appendChild(text);
+    });
+  }, [width, height, margin, edges, arcs, minX, minY, scale]);
+
+  return <svg ref={svgElementRef}></svg>;
 }

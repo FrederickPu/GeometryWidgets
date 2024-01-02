@@ -8,10 +8,13 @@ import Lean.Parser
 import Lean.PrettyPrinter.Delaborator.Basic
 import Lean.Server.Rpc.Basic
 
-import ProofWidgets.Component.Basic
+open scoped ProofWidgets.Jsx
+
+#html <Contour nodes = {#[⟨20, 20⟩, ⟨4.5, 6.0⟩]} edges = {#[⟨"askld", ⟨10, 10⟩, ⟨500, 10⟩⟩]} arcs = {#[⟨"aslda", ⟨500, 10⟩, 10, 0, 3.14 * 2⟩, ⟨"asdas", ⟨500 - 20, 10⟩, 20, 0, 3.14⟩]} />
 
 
-open Lean Expr
+
+open Lean Expr Server
 
 def constName? : Expr → Option Name
   | const n _ => some n
@@ -60,8 +63,6 @@ partial def isLine (e : Expr) : Option ((Nat × Nat) × (Nat × Nat)) :=
     | _, _ => none
   | _ => none
 
-open scoped ProofWidgets.Jsx
-#html <Contour nodes = {#[⟨20, 20⟩, ⟨4.5, 6.0⟩]} edges = {#[⟨⟨10, 10⟩, ⟨500, 10⟩⟩]} arcs = {#[⟨⟨500, 10⟩, 10, 0, 3.14 * 2⟩, ⟨⟨500 - 20, 10⟩, 20, 0, 3.14⟩]} />
 
 
 open Elab Tactic Json
@@ -103,18 +104,53 @@ def wow : Tactic
           vertices := ((a, b) :: vertices)
           vertices := ((c, d) :: vertices)
 
-          edges := ⟨⟨a.toFloat, b.toFloat⟩, ⟨c.toFloat, d.toFloat⟩⟩ :: edges
+          edges := ⟨declName.toString, ⟨a.toFloat, b.toFloat⟩, ⟨c.toFloat, d.toFloat⟩⟩ :: edges
         | none => pure ()
       | none => pure ()
     dbg_trace f!"{vertices} {exprList}"
     ProofWidgets.savePanelWidgetInfo stx ``Contour do
-      return ToJson.toJson ({width := 120, height := 70, margin := 10, nodes := #[], edges := edges.toArray, arcs := #[]} : ContourProps)
+      return ToJson.toJson ({width := 120, height := 70, margin := 20, nodes := #[], edges := edges.toArray, arcs := #[]} : ContourProps)
+  | _ => throwUnsupportedSyntax
+
+open Elab Tactic in
+
+syntax (name := withWowDisplayTacStx) "withWowDisplay " tacticSeq : tactic
+
+@[tactic withWowDisplayTacStx]
+def withWowDisplay : Tactic
+  | stx@`(tactic| withWowDisplay $seq) => do
+    evalTacticSeq seq
+    withMainContext do
+      let mut vertices : List (Nat × Nat) := []
+      let mut exprList : List (Option Expr) := []
+
+      let mut edges : List line := []
+
+      let ctx ← Lean.MonadLCtx.getLCtx -- get the local context.
+      for decl in ctx do
+        let declExpr := decl.toExpr -- Find the expression of the declaration.
+        let declName := decl.userName -- Find the name of the declaration.
+        let declType ← Lean.Meta.inferType declExpr -- **NEW:** Find the type.
+        exprList := decl.value? :: exprList
+        match decl.value? with
+        | some val =>
+          match isLine val with
+          | some ((a, b), (c, d)) =>
+            vertices := ((a, b) :: vertices)
+            vertices := ((c, d) :: vertices)
+
+            edges := ⟨declName.toString, ⟨a.toFloat, b.toFloat⟩, ⟨c.toFloat, d.toFloat⟩⟩ :: edges
+          | none => pure ()
+        | none => pure ()
+      dbg_trace f!"{vertices} {exprList}"
+      ProofWidgets.savePanelWidgetInfo stx ``Contour do
+        return ToJson.toJson ({width := 120, height := 70, margin := 20, nodes := #[], edges := edges.toArray, arcs := #[]} : ContourProps)
   | _ => throwUnsupportedSyntax
 
 example {α : Type} : 2 + 2 = 5 := by
+  withWowDisplay
   let bruh := Line (0, 0) (100, 0)
   let bruh2 := Line (100, 0) (100, 100)
   let bruh3 := Line (100, 100) (0, 100)
   let bruh4 := Line (0, 100) (0, 0)
   let wow := 2 + 2 = 4
-  wow

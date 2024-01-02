@@ -16,4 +16,4 @@ def presenter : ExprPresenter where
 example (h : 2 + 2 = 5) : 2 + 2 = 4 := by
   withSelectionDisplay
   -- Place cursor here and select subexpressions in the goal with shift-click
-    rfl
+    have : 2 + 2 = 4 := by rfl
